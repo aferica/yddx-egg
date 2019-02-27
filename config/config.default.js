@@ -45,15 +45,15 @@ module.exports = appInfo => {
     // database configuration
     client: {
       // host
-      // host: '127.0.0.1',
-      host: '193.112.176.174',
+      host: '127.0.0.1',
+      // host: '193.112.176.174',
       // port
       port: '3306',
       // username
       user: 'root',
       // password
-      // password: '123456',
-      password: 'HCKJ@admin',
+      password: '123456',
+      // password: 'HCKJ@admin',
       // database
       database: 'yddx',
     },

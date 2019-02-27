@@ -7,8 +7,7 @@ module.exports = appInfo => {
     // database configuration
     client: {
       // host
-      host: '193.112.176.174',
-      // host: '127.0.0.1',
+      host: '127.0.0.1',
       // port
       port: '3306',
       // username
@@ -26,7 +25,7 @@ module.exports = appInfo => {
 
   config.redis = {
     client: {
-      host: '193.112.176.174',
+      host: '127.0.0.1',
       port: '6379',
       password: 'HCKJ@admin',
       db: '0',
