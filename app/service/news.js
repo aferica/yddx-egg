@@ -9,7 +9,9 @@ class NewsService extends Service {
     page = Number(page) - 1 || 0
     limit = Number(limit) || 10
     let params = {}
-    params[type] = 1
+    if(type) {
+      params[type] = 1
+    }
     // console.log(params)
     const results = await this.app.mysql.select('news',{
       where: params,

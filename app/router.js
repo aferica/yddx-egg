@@ -14,6 +14,8 @@ module.exports = app => {
 
   router.get('/api/news/get', controller.news.index)
   router.get('/api/news/detail', controller.news.show)
+  router.get('/api/news/suggest', controller.news.getSuggest)
+
 
   router.get('/api/videos/get', controller.videos.index)
 
