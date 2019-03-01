@@ -114,6 +114,17 @@ class UserService extends Service {
     
     return sum_result
   }
+
+  // login======================================================================================================>
+  async login(payload) {
+    const user = await this.app.mysql.get('user', payload)
+    // console.log(user)
+    if (!user) {
+      this.ctx.throw(404, '账号或密码错误，请重试')
+    }
+    delete user.password
+    return user
+  }
 }
 
 

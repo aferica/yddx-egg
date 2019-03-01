@@ -12,21 +12,15 @@ class UploadController extends Controller {
 
   async uploadUserPhoto() {
     const { ctx, app, service } = this
-    
-    let now = new Date()
-    let year = now.getFullYear()
-    let month = now.getMonth() + 1
-    let day = now.getDate()
 
     const stream = await ctx.getFileStream()
     // console.log(stream._readableState.length)
     // 所有表单字段都能通过 `stream.fields` 获取到
-    const filename = path.basename(stream.filename) // 文件名称
     const extname = path.extname(stream.filename).toLowerCase() // 文件扩展名称
     // 构建图片名
     let fileName = Date.now() + extname
 
-    let key = 'image/avater/' + year + '/' + month + '/' + day + '/' + fileName
+    let key = 'image/avater' + getKey() + fileName
     let result = await service.upload.stream_uploader(stream, key)
     if (result.statusCode == 200) {
       let res = 'https://' + result.Location
@@ -38,21 +32,15 @@ class UploadController extends Controller {
 
   async uploadDangke() {
     const { ctx, app, service } = this
-    
-    let now = new Date()
-    let year = now.getFullYear()
-    let month = now.getMonth() + 1
-    let day = now.getDate()
 
     const stream = await ctx.getFileStream()
     // console.log(stream._readableState.length)
     // 所有表单字段都能通过 `stream.fields` 获取到
-    const filename = path.basename(stream.filename) // 文件名称
     const extname = path.extname(stream.filename).toLowerCase() // 文件扩展名称
     // 构建图片名
     let fileName = Date.now() + extname
 
-    let key = 'dangke/' + year + '/' + month + '/' + day + '/' + fileName
+    let key = 'dangke' + getKey() + fileName
     let result = await service.upload.stream_uploader(stream, key)
     if (result.statusCode == 200) {
       let res = 'https://' + result.Location
@@ -62,161 +50,91 @@ class UploadController extends Controller {
     }
   }
 
-  // 上传单个文件
-  async create() {
-    const { ctx, service } = this
-    // 要通过 ctx.getFileStream 便捷的获取到用户上传的文件，需要满足两个条件：
-    // 只支持上传一个文件。
-    // 上传文件必须在所有其他的 fields 后面，否则在拿到文件流时可能还获取不到 fields。
+  async uploadMultipartKey() {
+    const { ctx, app, service } = this
+
+    const { identifier, filename } = ctx.query
+    // console.log(ctx.query)
+    const redisRecord = await app.redis.get(identifier)
+    if(redisRecord) {
+      ctx.helper.success({ctx})
+    }
+    const extname = filename.split('.')[filename.split('.').length - 1].toLowerCase() // 文件扩展名称
+    let fileName = Date.now() + '.' + extname
+    let key = 'dangke' + getKey() + fileName
+    let result = await service.upload.get_multipart_upload_key(key)
+    if (result.statusCode == 200) {
+      const redisData = {
+        Key: result.Key,
+        UploadId: result.UploadId
+      }
+      await app.redis.set(identifier, JSON.stringify(redisData))
+      ctx.helper.success({ctx})
+    } else {
+      ctx.throw(404, '文件上传失败，请重试')
+    }
+  }
+
+  // 分块上传
+  async uploadMultipart() {
+    const { ctx, app, service } = this
     const stream = await ctx.getFileStream()
     // 所有表单字段都能通过 `stream.fields` 获取到
-    const filename = path.basename(stream.filename) // 文件名称
-    const extname = path.extname(stream.filename).toLowerCase() // 文件扩展名称
-    const url = `/uploads/${filename}`
-    console.log(filename, extname,url)
-    // 组装参数 stream
-    const target = path.join(this.config.baseDir, 'app/public/uploads', `${filename}`)
-    const writeStream = fs.createWriteStream(target)
-    // 文件处理，上传到云存储等等
-    try {
-      await awaitWriteStream(stream.pipe(writeStream))
-    } catch (err) {
-      // 必须将上传的文件流消费掉，要不然浏览器响应会卡死
-      await sendToWormhole(stream)
-      throw err
-    }
-    // 调用 Service 进行业务处理
-    // const res = await service.upload.create(attachment)
-    // 设置响应内容和响应状态码
-    ctx.helper.success({ctx})
-  }
-
-  // 通过URL添加单个图片: 如果网络地址不合法，EGG会返回500错误
-  async url() {
-    const { ctx, service } = this
-    // 组装参数
-    const attachment = new this.ctx.model.Attachment
-    const { url } = ctx.request.body
-    const filename = path.basename(url) // 文件名称
-    const extname = path.extname(url).toLowerCase() // 文件扩展名称
-    const options = {
-      url: url,
-      dest: path.join(this.config.baseDir, 'app/public/uploads', `${attachment._id.toString()}${extname}`)
-    }
-    let res    
-    try {
-      // 写入文件 const { filename, image}
-      // await download.image(options)
-      attachment.extname = extname
-      attachment.filename = filename
-      attachment.url = `/uploads/${attachment._id.toString()}${extname}`
-      res = await service.upload.create(attachment)
-    } catch (err) {
-      throw err
-    }
-    // 设置响应内容和响应状态码
-    ctx.helper.success({ctx, res}) 
-  }
-
-  // 上传多个文件
-  async multiple() {
-    // 要获取同时上传的多个文件，不能通过 ctx.getFileStream() 来获取
-    const { ctx, service } = this
-    const parts = ctx.multipart()
-    const res = {}
-    const files = []
-
-    let part // parts() return a promise
-    while ((part = await parts()) != null) {
-      if (part.length) {
-        // 如果是数组的话是 filed
-        // console.log('field: ' + part[0])
-        // console.log('value: ' + part[1])
-        // console.log('valueTruncated: ' + part[2])
-        // console.log('fieldnameTruncated: ' + part[3])
-      } else {
-        if (!part.filename) {
-          // 这时是用户没有选择文件就点击了上传(part 是 file stream，但是 part.filename 为空)
-          // 需要做出处理，例如给出错误提示消息
-          return
-        }
-        // part 是上传的文件流
-        // console.log('field: ' + part.fieldname)
-        // console.log('filename: ' + part.filename)
-        // console.log('extname: ' + part.extname)
-        // console.log('encoding: ' + part.encoding)
-        // console.log('mime: ' + part.mime)
-        const filename = part.filename.toLowerCase() // 文件名称
-        const extname = path.extname(part.filename).toLowerCase() // 文件扩展名称
-        
-        // 组装参数
-        const attachment = new ctx.model.Attachment
-        attachment.extname = extname
-        attachment.filename = filename
-        attachment.url = `/uploads/${attachment._id.toString()}${extname}`
-        // const target = path.join(this.config.baseDir, 'app/public/uploads', filename)
-        const target = path.join(this.config.baseDir, 'app/public/uploads', `${attachment._id.toString()}${extname}`)        
-        const writeStream = fs.createWriteStream(target)
-        // 文件处理，上传到云存储等等
-        let res
-        try {
-          // result = await ctx.oss.put('egg-multipart-test/' + part.filename, part)
-          await awaitWriteStream(part.pipe(writeStream))
-          // 调用Service
-          res = await service.upload.create(attachment)
-        } catch (err) {
-          // 必须将上传的文件流消费掉，要不然浏览器响应会卡死
-          await sendToWormhole(part)
-          throw err
-        }
-        files.push(`${attachment._id}`) // console.log(result)
+    // console.log(stream.fields)
+    
+    let result = await service.upload.multipart_stream_uploader(stream)
+    // console.log(result)
+    if(result.statusCode == 200) {
+      const partsKey = stream.fields.identifier+ '_Parts'
+      let partsString = await app.redis.get(partsKey)
+      let parts = []
+      if(partsString) {
+        parts = JSON.parse(partsString)
       }
+      // console.log(parseInt(stream.fields.chunkNumber) - 1)
+      // console.log(parts)
+      parts[parseInt(stream.fields.chunkNumber) - 1] = {PartNumber: stream.fields.chunkNumber, ETag: result.ETag}
+      // console.log(parts)
+      await app.redis.set(partsKey, JSON.stringify(parts))
+      ctx.helper.success({ctx, res: result})
+    } else {
+      ctx.throw(301, '分块上传失败，请重试')
     }
-    ctx.helper.success({ctx, res: { _ids:files }})
   }
 
-  // 删除单个文件
-  async destroy() {
-    const { ctx, service } = this
-    // 校验参数
-    const { id } = ctx.params
-    // 调用 Service 进行业务处理
-    await service.upload.destroy(id)
-    // 设置响应内容和响应状态码
-    ctx.helper.success({ctx})
-  }
+  // 实现完成整个分块上传
+  async uploadComplete() {
+    const { ctx, app, service } = this
 
-  // 修改单个文件
-  async update() {
-    const { ctx, service } = this
-    // 组装参数 
-    const { id } = ctx.params // 传入要修改的文档ID
-    // 调用Service 删除旧文件，如果存在
-    const attachment = await service.upload.updatePre(id)
-    // 获取用户上传的替换文件
-    const stream = await ctx.getFileStream()
-    const extname = path.extname(stream.filename).toLowerCase() // 文件扩展名称
-    const filename = path.basename(stream.filename) // 文件名称
-    // 组装更新参数
-    attachment.extname = extname
-    attachment.filename = filename
-    attachment.url = `/uploads/${attachment._id.toString()}${extname}`
-    const target_U = path.join(this.config.baseDir, 'app/public/uploads', `${attachment._id}${extname}`)      
-    const writeStream = fs.createWriteStream(target_U)
-    // 文件处理，上传到云存储等等
-    try {
-      await awaitWriteStream(stream.pipe(writeStream))
-    } catch (err) {
-      // 必须将上传的文件流消费掉，要不然浏览器响应会卡死
-      await sendToWormhole(stream)
-      throw err
+    const { identifier } = ctx.query
+
+    const partsKey = identifier+ '_Parts'
+    const parts = JSON.parse(await app.redis.get(partsKey))
+    const redisRecord = JSON.parse(await app.redis.get(identifier))
+    let result = await service.upload.complete_multipart_uploader(
+      redisRecord.Key, redisRecord.UploadId, parts)
+    if (result.statusCode == 200) {
+      await app.redis.del(identifier)
+      await app.redis.del(partsKey)
+      ctx.helper.success({ctx, result})
+    } else {
+      ctx.throw(404, '文件上传失败，请重试')
     }
-    // 调用Service 保持原图片ID不变，更新其他属性
-    await service.upload.update(id, attachment)
-    // 设置响应内容和响应状态码
-    ctx.helper.success({ctx})
-  }
-
+  } 
 }
 
 module.exports = UploadController
+
+
+function getKey() {
+  let now = new Date()
+  let year = now.getFullYear()
+  let month = now.getMonth() + 1
+  let day = now.getDate()
+
+  return '/' + year + '/' + month + '/' + day + '/'
+}
+
+function sortId(a,b){  
+  return parseInt(a.id) - parseInt(b.id) 
+}

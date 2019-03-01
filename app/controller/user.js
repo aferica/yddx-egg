@@ -11,9 +11,9 @@ class UserController extends Controller {
       belong_branch_id: {type: 'string', required: true, allowEmpty: false}
     }
 
-    this.UserUpdateTransfer = {
-      mobile: { type: 'string', required: true, allowEmpty: false },
-      realName: {type: 'string', required: true, allowEmpty: false, format: /^[\u2E80-\u9FFF]{2,6}$/}
+    this.UserLoginTransfer = {
+      user_name: { type: 'string', required: true, allowEmpty: false },
+      password: {type: 'string', required: true, allowEmpty: false }
     }
   }
 
@@ -100,6 +100,18 @@ class UserController extends Controller {
     }
     const res = await service.user.getReport(id)
 
+    ctx.helper.success({ctx, res})
+  }
+
+  async login() {
+    const { ctx, service } = this
+    // 校验参数
+    ctx.validate(this.UserLoginTransfer)
+    // 组装参数
+    const payload = ctx.request.body || {}
+    // 调用 Service 进行业务处理
+    const res = await service.user.login(payload)
+    // 设置响应内容和响应状态码
     ctx.helper.success({ctx, res})
   }
 }
