@@ -8,8 +8,12 @@ class VideoService extends Service {
 
     page = Number(page) - 1 || 0
     limit = Number(limit) || 10
+    let query = {}
+    if(type!=null) {
+      query.type = type
+    }
     const results = await this.app.mysql.select('videos',{
-      where: { type: type},
+      where: query,
       limit: limit,
       offset: page * limit
     })
