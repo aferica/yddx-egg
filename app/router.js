@@ -15,7 +15,10 @@ module.exports = app => {
 
   router.get('/api/news/get', controller.news.index)
   router.get('/api/news/detail', controller.news.show)
-  router.get('/api/news/suggest', controller.news.getSuggest)
+
+  router.get('/api/reco_news/get', controller.recoNews.index)
+  router.get('/api/reco_news/detail', controller.recoNews.show)
+  router.get('/api/reco_news/suggest', controller.recoNews.getSuggest)
 
 
   router.get('/api/videos/get', controller.videos.index)
